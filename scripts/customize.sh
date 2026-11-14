@@ -60,6 +60,12 @@ if [ -d "./feeds/pon_userspace" ] && [ -f "$TOP_DIR/patches/02-pon-userspace-loi
     ./scripts/feeds install -p pon_userspace -f || true
 fi
 
+if [ -d "./feeds/pon_userspace" ] && [ -f "$TOP_DIR/patches/03-pon-userspace-iptv-bridge-mac-fix.patch" ]; then
+    echo "--> Applying IPTV bridge MAC flipping root-fix patch to pon_userspace..."
+    (cd feeds/pon_userspace && git apply --check "$TOP_DIR/patches/03-pon-userspace-iptv-bridge-mac-fix.patch" 2>/dev/null && git apply "$TOP_DIR/patches/03-pon-userspace-iptv-bridge-mac-fix.patch") || true
+    ./scripts/feeds install -p pon_userspace -f || true
+fi
+
 # 6. 升级 sing-box 核心至 1.15.0-alpha.13（支持 endpoints[].on_demand 等 1.15+ 新版配置语法）
 # OpenWrt APK v3 禁止 PKG_VERSION 包含 '-'，因此包版本使用 1.15.0_alpha13，源码与二进制版本号保留 1.15.0-alpha.13
 SING_BOX_MK="./feeds/packages/net/sing-box/Makefile"

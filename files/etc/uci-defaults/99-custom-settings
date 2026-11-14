@@ -84,6 +84,7 @@ set network.pon0_45.isolate='1'
 set network.pon0_50=bridge-port
 set network.pon0_50.device='pon0.50'
 set network.pon0_50.isolate='1'
+set network.pon0_50.learning='0'
 
 set network.br_iptv=device
 set network.br_iptv.name='br-iptv'
