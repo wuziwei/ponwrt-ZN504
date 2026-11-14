@@ -20,50 +20,6 @@ add_list firewall.@zone[1].network='wan_6'
 commit firewall
 EOF
 
-# 1.1.1 预置 IPv6 防火墙放行规则（飞牛 NAS 与 Mac Mini）
-uci -q batch <<EOF
-set firewall.allow_feiniu_nas_ipv6=rule
-set firewall.allow_feiniu_nas_ipv6.name='Allow-Feiniu-NAS-IPv6'
-set firewall.allow_feiniu_nas_ipv6.src='wan'
-set firewall.allow_feiniu_nas_ipv6.dest='lan'
-set firewall.allow_feiniu_nas_ipv6.family='ipv6'
-set firewall.allow_feiniu_nas_ipv6.proto='tcp udp'
-set firewall.allow_feiniu_nas_ipv6.dest_port='21 22 5005 5006 5255 5666 5667 8005 8200 9024 9876'
-set firewall.allow_feiniu_nas_ipv6.target='ACCEPT'
-
-set firewall.allow_macmini_ipv6=rule
-set firewall.allow_macmini_ipv6.name='Allow-MacMini-IPv6'
-set firewall.allow_macmini_ipv6.src='wan'
-set firewall.allow_macmini_ipv6.dest='lan'
-set firewall.allow_macmini_ipv6.family='ipv6'
-set firewall.allow_macmini_ipv6.proto='tcp udp'
-set firewall.allow_macmini_ipv6.dest_port='22 2283 6771 8080 8096 8123 9876 21063-21065'
-set firewall.allow_macmini_ipv6.target='ACCEPT'
-
-set firewall.allow_luci_wan=rule
-set firewall.allow_luci_wan.name='Allow-LuCI-WAN'
-set firewall.allow_luci_wan.src='wan'
-set firewall.allow_luci_wan.proto='tcp'
-set firewall.allow_luci_wan.dest_port='9080'
-set firewall.allow_luci_wan.target='ACCEPT'
-
-set firewall.allow_ax3000t_ipv6=rule
-set firewall.allow_ax3000t_ipv6.name='Allow-AX3000T-IPv6'
-set firewall.allow_ax3000t_ipv6.src='wan'
-set firewall.allow_ax3000t_ipv6.dest='lan'
-set firewall.allow_ax3000t_ipv6.family='ipv6'
-set firewall.allow_ax3000t_ipv6.proto='tcp'
-set firewall.allow_ax3000t_ipv6.dest_port='8080'
-set firewall.allow_ax3000t_ipv6.target='ACCEPT'
-commit firewall
-EOF
-
-# 1.1.2 预置 uhttpd 监听 9080 端口用于外网 IPv6 远程管理（规避运营商封锁 80/443）
-uci -q batch <<EOF
-add_list uhttpd.main.listen_http='0.0.0.0:9080'
-add_list uhttpd.main.listen_http='[::]:9080'
-commit uhttpd
-EOF
 
 # 1.2 预置 LuCI 默认主题为 Vantage 主题（并注册主题列表）
 uci -q batch <<EOF
@@ -174,49 +130,6 @@ if [ -f /etc/config/udpxy ]; then
     uci -q commit udpxy
 fi
 
-# 2.1 预置 Cloudflare IPv6 DDNS (router.444556.xyz 与 zn504.444556.xyz，绑定 network.lan 自动规避 ULA 私网 IPv6)
-if [ -f /etc/config/ddns ]; then
-    uci -q batch <<EOF
-set ddns.cf_zn504_ipv6=service
-set ddns.cf_zn504_ipv6.enabled='1'
-set ddns.cf_zn504_ipv6.service_name='cloudflare.com-v4'
-set ddns.cf_zn504_ipv6.domain='zn504@444556.xyz'
-set ddns.cf_zn504_ipv6.username='Bearer'
-set ddns.cf_zn504_ipv6.password='YOUR_CLOUDFLARE_API_TOKEN'
-set ddns.cf_zn504_ipv6.ip_source='network'
-set ddns.cf_zn504_ipv6.ip_network='lan'
-set ddns.cf_zn504_ipv6.interface='br-lan'
-set ddns.cf_zn504_ipv6.use_ipv6='1'
-set ddns.cf_zn504_ipv6.lookup_host='zn504.444556.xyz'
-set ddns.cf_zn504_ipv6.dns_server='1.1.1.1'
-set ddns.cf_zn504_ipv6.check_interval='10'
-set ddns.cf_zn504_ipv6.check_unit='minutes'
-set ddns.cf_zn504_ipv6.force_interval='24'
-set ddns.cf_zn504_ipv6.force_unit='hours'
-set ddns.cf_zn504_ipv6.retry_interval='60'
-set ddns.cf_zn504_ipv6.retry_unit='seconds'
-
-set ddns.cf_router_ipv6=service
-set ddns.cf_router_ipv6.enabled='1'
-set ddns.cf_router_ipv6.service_name='cloudflare.com-v4'
-set ddns.cf_router_ipv6.domain='router@444556.xyz'
-set ddns.cf_router_ipv6.username='Bearer'
-set ddns.cf_router_ipv6.password='YOUR_CLOUDFLARE_API_TOKEN'
-set ddns.cf_router_ipv6.ip_source='network'
-set ddns.cf_router_ipv6.ip_network='lan'
-set ddns.cf_router_ipv6.interface='br-lan'
-set ddns.cf_router_ipv6.use_ipv6='1'
-set ddns.cf_router_ipv6.lookup_host='router.444556.xyz'
-set ddns.cf_router_ipv6.dns_server='1.1.1.1'
-set ddns.cf_router_ipv6.check_interval='10'
-set ddns.cf_router_ipv6.check_unit='minutes'
-set ddns.cf_router_ipv6.force_interval='24'
-set ddns.cf_router_ipv6.force_unit='hours'
-set ddns.cf_router_ipv6.retry_interval='60'
-set ddns.cf_router_ipv6.retry_unit='seconds'
-commit ddns
-EOF
-fi
 
 # 3. 禁用系统自带独立 sing-box 服务自启（由 momo 独占调度管理，彻底杜绝双进程冲突与端口争抢）
 if [ -f /etc/init.d/sing-box ]; then
