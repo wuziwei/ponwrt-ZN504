@@ -233,7 +233,7 @@ set momo.log.scheduled_clear='1'
 set momo.log.scheduled_clear_size_limit='1'
 set momo.log.scheduled_clear_size_limit_unit='MB'
 set momo.log.scheduled_clear_cron='0 * * * *'
-set momo.config.scheduled_restart='1'
+set momo.config.scheduled_restart='0'
 set momo.config.scheduled_restart_cron='0 4 * * *'
 commit momo
 EOF
