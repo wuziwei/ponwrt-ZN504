@@ -8,6 +8,15 @@ on:
         required: false
         default: 'true'
         type: boolean
+      cache_mode:
+        description: '编译缓存模式 (使用缓存 / 重新编译 / 不使用缓存)'
+        required: false
+        default: '使用缓存'
+        type: choice
+        options:
+          - '使用缓存'
+          - '重新编译'
+          - '不使用缓存'
   push:
     branches:
       - master
@@ -20,6 +29,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  CCACHE_COMPILERCHECK: '%compiler% -dumpmachine; %compiler% -dumpversion'
+  CCACHE_MAXSIZE: 5G
 
 jobs:
   build:
@@ -92,18 +105,46 @@ jobs:
         run: |
           bash ./scripts/customize.sh
 
+      - name: Restore compiler ccache
+        if: ${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ponwrt-ccache-zn504-${{ hashFiles('configs/*.config') }}-${{ github.sha }}
+          restore-keys: |
+            ponwrt-ccache-zn504-${{ hashFiles('configs/*.config') }}-
+            ponwrt-ccache-zn504-
+
       - name: Configure for ZN504XG-D
         run: |
           ./scripts/kconfig.pl + \
             configs/an7581.config \
             configs/release.config > .config
+          if [ "${{ github.event.inputs.cache_mode || '使用缓存' }}" != "不使用缓存" ]; then
+            sed -i '/^CONFIG_DEVEL=/d; /^CONFIG_CCACHE=/d' .config
+            printf 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y\n' >> .config
+          fi
           make defconfig
 
       - name: Download package sources
         run: make download -j"$(nproc)"
 
       - name: Compile firmware
-        run: make -j"$(nproc)" || make -j1 V=s
+        run: |
+          [ -x staging_dir/host/bin/ccache ] && CCACHE_DIR=$PWD/.ccache staging_dir/host/bin/ccache -z || true
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Save compiler ccache
+        if: always() && (${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存')
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ponwrt-ccache-zn504-${{ hashFiles('configs/*.config') }}-${{ github.sha }}
+
+      - name: Show compiler cache statistics
+        if: always() && (${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存')
+        run: |
+          [ -x staging_dir/host/bin/ccache ] && CCACHE_DIR=$PWD/.ccache staging_dir/host/bin/ccache -s || true
 
       - name: Organize output files
         run: |
@@ -158,7 +199,6 @@ jobs:
               - 统一对齐 `16MB` (`16777216`) TCP/UDP 核心与套接字缓冲区及万兆网络队列扩容（`netdev_max_backlog=16384`, `netdev_budget=600`, `dev_weight=128`），提升软中断吞吐并消除 CPU CDM1 交换队列突发丢包
               - 精细化 CPUFreq 双调度器调优（默认预置 `conservative`，阶跃 10%、门限 70%/30%、平滑驻留倍数 2，温度降至 ~68°C 且无顿挫；兼顾 `ondemand` 75% 门限与 10% 节电偏置），停用未配置硬盘的闲置 Samba4/wsdd2 开箱净省近 50MB 内存
               - 调优 PPE 硬件流表直转门限至 `5 pps`，并修复 `luci-app-airoha-npu` PSE 交换端口队列历史丢包常态化标红缺陷，支持实时丢包检测与一键重置丢包基准
-              - 内置可选日常用量画像与分时温控工具 (`/usr/sbin/traffic-profiler.sh`，默认不自启由用户自主按需开关)，支持工作日与周末 24 小时用量直方图与一键分时限频降温计划（`enable`/`disable`/`report`/`apply`）
             * **集成 QWRT 核心硬件特性**：
               - Airoha AN7581 NPU / PPE 硬件流量转发加速 (`luci-app-airoha-npu`, `luci-app-hqos`)
               - CPU 调频策略与频率管理 (`luci-app-cpufreq`)
@@ -175,9 +215,13 @@ jobs:
             * **集成 LeoooChen 项目精华**：
               - XG-PON 线路与 PPPoE 线速硬件流量卸载（千兆带宽 CPU 占用低至约 4.5%）
               - 16MB 高通量网络与 IPTV 环形缓冲区调优，杜绝 4K/8K 组播与突发丢包
-            * **电信 4K/8K IPTV 开箱即用 (`br-iptv` + `rtp2httpd`)**：
-              - 首启自动构建异 VLAN 隔离网桥 `br-iptv`（`pon0.45` IGMP 上行 + `pon0.50` 组播下行，启用 `netifd` 原生 `bridge-port isolate='1'` 防二层环路反射）与 `169.254.50.2/24` 无默认路由 `iptv` 接口及专属 `iptv` 防火墙规则
+            * **电信 4K/8K IPTV 开箱即用与网桥 MAC 翻转 (1302 错误) 独家根治**：
+              - **独家根治机顶盒 1302 鉴权超时**：内置 `03-pon-userspace-iptv-bridge-mac-fix.patch`，在 `luci-app-iptv` 与 `br-iptv` 组播口上默认执行 `learning='0'`，彻底杜绝上游 BNG 相同 MAC 表在组播口翻转引发的单播黑洞，同时动态探测上游网关 MAC 并静态固化到业务口，实现**机顶盒秒速鉴权 + 4K/8K 组播画质双流畅**
+              - 首启自动构建异 VLAN 隔离网桥 `br-iptv`（`pon0.45` IGMP 上行 + `pon0.50` 组播下行，启用 `netifd` 原生 `bridge-port isolate='1'` 与 `learning='0'` 防二层环路反射）与 `169.254.50.2/24` 无默认路由 `iptv` 接口及专属 `iptv` 防火墙规则
               - `rtp2httpd` 默认纯端口 `4022` 双栈监听（修复 LuCI 状态/播放器按钮跳转 `0.0.0.0` 问题），上游默认绑定 `br-iptv`，内置 `/www/iptv.m3u` 与 `/playlist.m3u` 订阅入口
+              - 原生集成 `luci-app-iptv` 与 YAML 处理器 `yq`，全面覆盖机顶盒物理透传与局域网多设备组播转单播需求
+            * **CI/CD 构建流水线现代化 (吸收 1018ji/build-ponwrt-daily 精华)**：
+              - 升级构建流水线至 Ubuntu 24.04 + Node 24，集成基于编译器版本指纹的 Ccache 高速缓存（`CCACHE_COMPILERCHECK`）与 DL 共享依赖池，编译时间大幅缩短
             * **Momo / Sing-box 透明代理**：
               - 原生集成 `luci-app-momo` 与最新 `sing-box 1.15.0-alpha.13` 预览版核心（支持 `endpoints[].on_demand` 等 1.15+ 新版订阅语法）
               - 预置 128MiB 健康堆内存上限与定时内存整理防爆机制
