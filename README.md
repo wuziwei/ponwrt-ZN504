@@ -104,7 +104,7 @@
 
 本项目研发了 **双重锁定根治体系**：
 1. **第一重锁：组播口物理级阻断学习 (`learning='0'`)**：
-   在 `luci-app-iptv`（`/usr/libexec/iptv-apply`）与网桥配置中，对组播端口 `ct-iptv-mc` 与 IGMP 端口 `ct-iptv-igmp` 永久关闭 MAC 学习：
+   在网桥与接口配置中，对组播端口（如 `ct-iptv-mc` / `pon0.50`）与 IGMP 端口永久关闭 MAC 学习：
    ```uci
    set network.luci_iptv_mc_port=bridge-port
    set network.luci_iptv_mc_port.device='ct-iptv-mc'

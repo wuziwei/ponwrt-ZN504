@@ -103,7 +103,7 @@ When both ports and the STB LAN port are bridged into a single bridge (`br-iptv`
 ```
 
 1. **Lock 1: Hard Disabled MAC Learning on Multicast Ports (`learning='0'`)**:
-   In `luci-app-iptv` (`/usr/libexec/iptv-apply`) and `br-iptv` configurations, MAC learning is permanently disabled on `ct-iptv-mc` and `ct-iptv-igmp`:
+   In `br-iptv` bridge and port configurations, MAC learning is permanently disabled on multicast ports:
    ```uci
    set network.luci_iptv_mc_port=bridge-port
    set network.luci_iptv_mc_port.device='ct-iptv-mc'
